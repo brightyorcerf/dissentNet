@@ -367,3 +367,43 @@ data_entropy_histogram.png — Section 2 entropy histogram
 data_soft_confusion.png — Section 2 confusion heatmap
 architecture.png — Section 3 architecture diagram
 robustness_corruption_response_...png — Section 6.2 corruption plot
+
+## How it works
+
+### Phase 1: Setup
+
+```
+default.yaml → 01_prepare_data.py → splits.npz
+                     ↓
+              data_sanity_checks.json
+```
+Config is loaded, CIFAR-10H is prepared, split into 6k/2k/2k, sanity checks run. Everything downstream depends on this.
+
+### Phase 2: Training
+
+```
+splits.npz + default.yaml
+        ↓
+02_train_all_losses.py
+        ↓
+src/data.py → src/models.py → src/losses.py → src/train.py
+                                    ↓
+              best_kl.pt + best_jsd.pt + best_composite.pt
+                           + training_histories.json
+```
+Three training runs, identical except for which loss from losses.py is used. Each run monitors validation KL and saves the best checkpoint. Training curves saved to training_histories.json.
+
+### Phase 3: Analysis
+
+```
+best_*.pt + splits.npz
+      ↓              ↓                    ↓                 ↓
+04_evaluate     03_ablations         05_robustness      06_explain
+      ↓              ↓                    ↓                 ↓
+results table   subsampling csv      corruption csv     gradcam pngs
+(section 5)     (section 6.1)        (section 6.2)      (section 7)
+```
+All four scripts load the saved checkpoints and run independently. viz.py and utils.py are helper modules called throughout all phases, they don't run on their own.
+
+One line summary: prepare → train three models → evaluate/analyse all three. The checkpoints are the bridge between training and everything else.
+
